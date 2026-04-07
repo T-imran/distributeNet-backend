@@ -5,8 +5,10 @@ import com.distribnet.users.model.ManagedUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ManagedUserRepository extends JpaRepository<ManagedUser, UUID> {
     List<ManagedUser> findByTenant(Tenant tenant);
+    Optional<ManagedUser> findByUserId(UUID userId);
 }
