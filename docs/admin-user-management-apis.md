@@ -1,84 +1,42 @@
 # Admin User Management APIs
 
-This document is the frontend handoff for the admin user-management screens. These APIs support:
+This document is the frontend handoff for admin user-management screens.
 
-- permission list screen
-- create role screen
-- edit role and permission mapping screen
-- user list screen
-- create user screen
-- edit user screen
-- assign role to user flow
+Important workflow change:
+
+- create role, update role, create user, update user, and assign role do not go live immediately
+- those actions now create a pending approval request
+- only after another admin approves the request will the change become active in admin portal and customer-facing areas
 
 Base path: `/api/v1/admin`
 
 Auth requirement:
 
 - bearer token required
-- caller must have `SUPER_ADMIN` or `TENANT_ADMIN` base role
-- all data is tenant-scoped from the authenticated session
+- caller must have `SUPER_ADMIN` or `TENANT_ADMIN`
+- all records are tenant-scoped from the logged-in session
 
-## 1. Get Permission Catalog
+## Active Data APIs
 
-`GET /api/v1/admin/permissions`
+These APIs return the currently approved and active records.
 
-Use this to populate the permission selection section while creating or editing a role.
+### GET `/api/v1/admin/permissions`
 
-Response:
+Returns the permission catalog for role forms.
 
-```json
-{
-  "success": true,
-  "message": "Permissions fetched successfully",
-  "data": [
-    {
-      "id": "4f2c31df-f86f-4fd4-b8ff-d4d9e1f8ef20",
-      "code": "role.create",
-      "name": "Create Roles",
-      "module": "user-management",
-      "description": "Create new custom roles"
-    }
-  ]
-}
-```
+### GET `/api/v1/admin/roles`
 
-## 2. Get Role List
+Returns only approved roles that are already active in the system.
 
-`GET /api/v1/admin/roles`
+### GET `/api/v1/admin/users`
 
-Use this for the role list screen and role dropdowns in the user form.
+Returns only approved user state currently active in the system.
 
-Response:
+### GET `/api/v1/admin/users/{userId}`
 
-```json
-{
-  "success": true,
-  "message": "Roles fetched successfully",
-  "data": [
-    {
-      "id": "5d1f9cb4-d1d2-40a4-986f-7dfef8a4434f",
-      "code": "SALES_MANAGER",
-      "name": "Sales Manager",
-      "description": "Manages field sales operations",
-      "baseRole": "MANAGER",
-      "active": true,
-      "permissions": [
-        {
-          "id": "4f2c31df-f86f-4fd4-b8ff-d4d9e1f8ef20",
-          "code": "user.read",
-          "name": "View Users",
-          "module": "user-management",
-          "description": "View user records and assignments"
-        }
-      ],
-      "createdAt": "2026-04-07T18:00:00",
-      "updatedAt": "2026-04-07T18:00:00"
-    }
-  ]
-}
-```
+Returns a single approved user record.
 
-## 3. Create Role
+## Submit Role Create Request
 
 `POST /api/v1/admin/roles`
 
@@ -98,26 +56,43 @@ Request:
 }
 ```
 
-Frontend notes:
-
-- `code` should be unique per tenant
-- `baseRole` must be one of `SUPER_ADMIN`, `TENANT_ADMIN`, `MANAGER`, `SALESMAN`, `DEALER`, `RETAILER`
-- `permissionIds` must come from the permission catalog API
-
 Response:
 
-- returns the full created role object in the same shape as `GET /roles`
+```json
+{
+  "success": true,
+  "message": "Role request submitted successfully",
+  "data": {
+    "message": "Role creation submitted for approval",
+    "approvalRequest": {
+      "id": "b18173ce-8d89-4537-8649-8d201285bfb7",
+      "sourceType": "ADMIN_PORTAL",
+      "entityType": "ROLE",
+      "actionType": "CREATE",
+      "status": "PENDING",
+      "summary": "Create role: Sales Manager",
+      "requestedByUserId": "11f2dcd5-0c17-4e52-b180-4b1c1739cb66",
+      "requestedByName": "Admin One",
+      "reviewedByUserId": null,
+      "reviewedByName": null,
+      "reviewedAt": null,
+      "createdAt": "2026-04-07T19:00:00",
+      "updatedAt": "2026-04-07T19:00:00"
+    }
+  }
+}
+```
 
-## 4. Update Role
+## Submit Role Update Request
 
 `PUT /api/v1/admin/roles/{roleId}`
 
-Request:
+Request body:
 
 ```json
 {
   "name": "Sales Manager",
-  "description": "Updated description from admin screen",
+  "description": "Updated role details",
   "baseRole": "MANAGER",
   "active": true,
   "permissionIds": [
@@ -126,54 +101,12 @@ Request:
 }
 ```
 
-Frontend notes:
-
-- `code` is intentionally not editable in this API
-- if `baseRole` changes, existing users under that custom role also inherit the new base role automatically
-
-## 5. Get User List
-
-`GET /api/v1/admin/users`
-
-Use this for the user list grid.
-
 Response:
 
-```json
-{
-  "success": true,
-  "message": "Users fetched successfully",
-  "data": [
-    {
-      "id": "44d7f118-7c75-43d0-97d0-34c779e910d1",
-      "name": "Nusrat Jahan",
-      "email": "nusrat@example.com",
-      "phone": "+8801712345678",
-      "region": "Dhaka North",
-      "status": "ACTIVE",
-      "baseRole": "MANAGER",
-      "roleId": "5d1f9cb4-d1d2-40a4-986f-7dfef8a4434f",
-      "roleCode": "SALES_MANAGER",
-      "roleName": "Sales Manager",
-      "lastLoginAt": "2026-04-07T08:30:00",
-      "createdAt": "2026-04-07T08:00:00",
-      "updatedAt": "2026-04-07T08:30:00"
-    }
-  ]
-}
-```
+- same pending approval response shape as role create
+- actual role change becomes active only after approval
 
-## 6. Get Single User
-
-`GET /api/v1/admin/users/{userId}`
-
-Use this when opening an edit screen or pre-filling a detail drawer.
-
-Response:
-
-- same object shape as a user item from the list API
-
-## 7. Create User
+## Submit User Create Request
 
 `POST /api/v1/admin/users`
 
@@ -191,17 +124,12 @@ Request:
 }
 ```
 
-Frontend notes:
-
-- `status` must be one of `ACTIVE`, `INACTIVE`, `SUSPENDED`
-- `roleId` must come from the roles API
-- password is required for create
-
 Response:
 
-- returns the full created user object
+- returns pending approval response
+- user is not active for login or UI usage until approved
 
-## 8. Update User
+## Submit User Update Request
 
 `PUT /api/v1/admin/users/{userId}`
 
@@ -218,12 +146,12 @@ Request:
 }
 ```
 
-Frontend notes:
+Response:
 
-- this API does not change password
-- use this for profile edits plus role reassignment in one save action
+- returns pending approval response
+- current active record remains unchanged until approved
 
-## 9. Assign Role Only
+## Submit User Role Assignment Request
 
 `PATCH /api/v1/admin/users/{userId}/role`
 
@@ -235,7 +163,17 @@ Request:
 }
 ```
 
-Use this when the UI has a quick role-change action separate from the full edit form.
+Response:
+
+- returns pending approval response
+- user keeps existing active role until approval happens
+
+## Frontend Integration Notes
+
+- role and user list screens should continue reading `GET /api/v1/admin/roles` and `GET /api/v1/admin/users`
+- create and edit screens should show a success state like `Submitted for approval`
+- after submit, frontend should redirect to the approval queue or show the returned `approvalRequest` summary
+- the approval queue page should consume the dedicated approval APIs described in [approval-page-apis.md](/e:/React%20Project/backend/docs/approval-page-apis.md)
 
 ## Suggested Screen Mapping
 
@@ -256,31 +194,18 @@ Use this when the UI has a quick role-change action separate from the full edit 
   - submit to `PUT /api/v1/admin/users/{userId}`
 - Quick Assign Role action:
   - call `PATCH /api/v1/admin/users/{userId}/role`
+- Approval queue screen:
+  - use the approval APIs from the approval doc
 
-## Validation Errors
+## Validation And Business Errors
 
-Validation failures follow the shared API envelope:
+Validation errors use the standard API response envelope.
 
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": [
-    {
-      "code": "VALIDATION_ERROR",
-      "field": "email",
-      "message": "must be a well-formed email address"
-    }
-  ]
-}
-```
+Business errors can include:
 
-Business errors such as duplicate role code, duplicate email, invalid status, or inactive role assignment return:
-
-```json
-{
-  "success": false,
-  "message": "A user with this email already exists for this tenant",
-  "errors": []
-}
-```
+- duplicate email
+- duplicate role code
+- invalid status
+- invalid base role
+- inactive role assignment
+- requester trying to approve their own request

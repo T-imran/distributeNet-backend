@@ -1,7 +1,9 @@
 package com.distribnet.users.controller;
 
+import com.distribnet.approvals.dto.PendingActionResponseDto;
 import com.distribnet.common.dto.ApiResponse;
 import com.distribnet.common.model.Tenant;
+import com.distribnet.common.model.User;
 import com.distribnet.common.security.SecurityUtils;
 import com.distribnet.users.dto.AssignUserRoleRequest;
 import com.distribnet.users.dto.CreateManagedUserRequest;
@@ -12,6 +14,7 @@ import com.distribnet.users.dto.UpdateManagedUserRequest;
 import com.distribnet.users.dto.UpdateRoleRequest;
 import com.distribnet.users.dto.UserSummaryDto;
 import com.distribnet.users.service.AdminUserManagementService;
+import com.distribnet.users.service.AdminUserManagementProvisioningService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +39,7 @@ import java.util.UUID;
 public class AdminUserManagementController {
 
     private final AdminUserManagementService adminUserManagementService;
+    private final AdminUserManagementProvisioningService provisioningService;
 
     @GetMapping("/permissions")
     public ResponseEntity<ApiResponse<List<PermissionSummaryDto>>> listPermissions() {
@@ -54,25 +58,34 @@ public class AdminUserManagementController {
     }
 
     @PostMapping("/roles")
-    public ResponseEntity<ApiResponse<RoleSummaryDto>> createRole(
+    public ResponseEntity<ApiResponse<PendingActionResponseDto>> createRole(
             @Valid @RequestBody CreateRoleRequest request,
             Authentication authentication
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                adminUserManagementService.createRole(requireTenant(authentication), request),
-                "Role created successfully"
+                adminUserManagementService.submitCreateRole(
+                        requireTenant(authentication),
+                        requireCurrentUser(authentication),
+                        request
+                ),
+                "Role request submitted successfully"
         ));
     }
 
     @PutMapping("/roles/{roleId}")
-    public ResponseEntity<ApiResponse<RoleSummaryDto>> updateRole(
+    public ResponseEntity<ApiResponse<PendingActionResponseDto>> updateRole(
             @PathVariable UUID roleId,
             @Valid @RequestBody UpdateRoleRequest request,
             Authentication authentication
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                adminUserManagementService.updateRole(requireTenant(authentication), roleId, request),
-                "Role updated successfully"
+                adminUserManagementService.submitUpdateRole(
+                        requireTenant(authentication),
+                        requireCurrentUser(authentication),
+                        roleId,
+                        request
+                ),
+                "Role update request submitted successfully"
         ));
     }
 
@@ -96,41 +109,59 @@ public class AdminUserManagementController {
     }
 
     @PostMapping("/users")
-    public ResponseEntity<ApiResponse<UserSummaryDto>> createUser(
+    public ResponseEntity<ApiResponse<PendingActionResponseDto>> createUser(
             @Valid @RequestBody CreateManagedUserRequest request,
             Authentication authentication
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                adminUserManagementService.createUser(requireTenant(authentication), request),
-                "User created successfully"
+                adminUserManagementService.submitCreateUser(
+                        requireTenant(authentication),
+                        requireCurrentUser(authentication),
+                        request
+                ),
+                "User creation request submitted successfully"
         ));
     }
 
     @PutMapping("/users/{userId}")
-    public ResponseEntity<ApiResponse<UserSummaryDto>> updateUser(
+    public ResponseEntity<ApiResponse<PendingActionResponseDto>> updateUser(
             @PathVariable UUID userId,
             @Valid @RequestBody UpdateManagedUserRequest request,
             Authentication authentication
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                adminUserManagementService.updateUser(requireTenant(authentication), userId, request),
-                "User updated successfully"
+                adminUserManagementService.submitUpdateUser(
+                        requireTenant(authentication),
+                        requireCurrentUser(authentication),
+                        userId,
+                        request
+                ),
+                "User update request submitted successfully"
         ));
     }
 
     @PatchMapping("/users/{userId}/role")
-    public ResponseEntity<ApiResponse<UserSummaryDto>> assignRole(
+    public ResponseEntity<ApiResponse<PendingActionResponseDto>> assignRole(
             @PathVariable UUID userId,
             @Valid @RequestBody AssignUserRoleRequest request,
             Authentication authentication
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                adminUserManagementService.assignRole(requireTenant(authentication), userId, request),
-                "User role assigned successfully"
+                adminUserManagementService.submitAssignRole(
+                        requireTenant(authentication),
+                        requireCurrentUser(authentication),
+                        userId,
+                        request
+                ),
+                "User role assignment request submitted successfully"
         ));
     }
 
     private Tenant requireTenant(Authentication authentication) {
         return SecurityUtils.requireTenant(authentication);
+    }
+
+    private User requireCurrentUser(Authentication authentication) {
+        return provisioningService.findUserEntity(requireTenant(authentication), SecurityUtils.requireUserId(authentication));
     }
 }
